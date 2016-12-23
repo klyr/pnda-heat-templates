@@ -22,8 +22,10 @@ parameters:
     default: ubuntu1404
   public_net:
     type: string
-    description: >
-      ID or name of public network for which floating IP addresses will be allocated
+    description: ID or name of public network for which floating IP addresses will be allocated
+  public_net2:
+    type: string
+    description: ID or name of public network which is used as an External Gateway for Second Router
   private_net_cidr:
     type: string
     description: Private network address (CIDR notation)
@@ -38,6 +40,18 @@ parameters:
     description: End of private network IP address allocation pool
   name_servers:
     description: List of name name servers
+    type: string
+  default_dest1:
+    description: Default Host route Destination for Internet
+    type: string
+  default_nexthop1:
+    description: Default Host route Nexthop for Internet
+    type: string
+  default_dest2:
+    description:  Default Host route Destination for Controller Host
+    type: string
+  default_nexthop2:
+    description: Default Host route Nexthop for Controller Host
     type: string
   KeyName:
     description: Name of an existing KeyPair to enable SSH access to the instances
@@ -173,6 +187,22 @@ resources:
         - start: { get_param: private_net_pool_start }
           end: { get_param: private_net_pool_end }
       dns_nameservers: { get_param: name_servers }
+      host_routes:
+        - destination: { get_param: default_dest1 }
+          nexthop: { get_param: default_nexthop1 }
+        - destination: { get_param: default_dest2 }
+          nexthop: { get_param: default_nexthop2 }
+        - destination: '169.254.169.254/32'
+          nexthop: { get_param: default_nexthop1 }
+
+  
+  private_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_resource: private_net }
+      fixed_ips:
+        - ip_address: { get_param: default_nexthop2 }
+
   router:
     type: OS::Neutron::Router
     properties:
@@ -183,6 +213,18 @@ resources:
     properties:
       router_id: { get_resource: router }
       subnet_id: { get_resource: private_subnet }
+  
+  router2:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network: { get_param: public_net2 }
+  router_interface2:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: router2 }
+      port: { get_resource: private_port }  
+
   PndaSecGroup:
     type: OS::Neutron::SecurityGroup
     properties:
